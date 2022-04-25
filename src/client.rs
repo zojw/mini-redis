@@ -9,8 +9,9 @@ use async_stream::try_stream;
 use bytes::Bytes;
 use std::io::{Error, ErrorKind};
 use std::time::Duration;
-use tokio::net::{TcpStream, ToSocketAddrs};
+use tokio::net::ToSocketAddrs;
 use tokio_stream::Stream;
+use tokio_uring::net::TcpStream;
 use tracing::{debug, instrument};
 
 /// Established connection with a Redis server.
@@ -77,6 +78,7 @@ pub async fn connect<T: ToSocketAddrs>(addr: T) -> crate::Result<Client> {
     // performs any asynchronous DNS lookup and attempts to establish the TCP
     // connection. An error at either step returns an error, which is then
     // bubbled up to the caller of `mini_redis` connect.
+    let addr = tokio::net::lookup_host(addr).await?.next().unwrap();
     let socket = TcpStream::connect(addr).await?;
 
     // Initialize the connection state. This allocates read/write buffers to

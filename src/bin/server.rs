@@ -9,11 +9,15 @@
 use mini_redis::{server, DEFAULT_PORT};
 
 use structopt::StructOpt;
-use tokio::net::TcpListener;
 use tokio::signal;
+use tokio_uring::net::TcpListener;
 
-#[tokio::main]
-pub async fn main() -> mini_redis::Result<()> {
+pub fn main() {
+    let f = _main();
+    tokio_uring::start(f).unwrap();
+}
+
+async fn _main() -> mini_redis::Result<()> {
     // enable logging
     // see https://docs.rs/tracing for more info
     tracing_subscriber::fmt::try_init()?;
@@ -22,7 +26,11 @@ pub async fn main() -> mini_redis::Result<()> {
     let port = cli.port.as_deref().unwrap_or(DEFAULT_PORT);
 
     // Bind a TCP listener
-    let listener = TcpListener::bind(&format!("127.0.0.1:{}", port)).await?;
+    let addr = tokio::net::lookup_host(&format!("127.0.0.1:{}", port))
+        .await?
+        .next()
+        .unwrap();
+    let listener = TcpListener::bind(addr)?;
 
     server::run(listener, signal::ctrl_c()).await;
 

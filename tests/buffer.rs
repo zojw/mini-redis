@@ -1,7 +1,7 @@
 use mini_redis::{buffer, client, server};
 use std::net::SocketAddr;
-use tokio::net::TcpListener;
 use tokio::task::JoinHandle;
+use tokio_uring::net::TcpListener;
 
 /// A basic "hello world" style test. A server instance is started in a
 /// background task. A client instance is then established and used to intialize
@@ -21,10 +21,16 @@ async fn pool_key_value_get_set() {
 }
 
 async fn start_server() -> (SocketAddr, JoinHandle<()>) {
-    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
-    let addr = listener.local_addr().unwrap();
+    let addr = tokio::net::lookup_host("127.0.0.1:0")
+        .await
+        .unwrap()
+        .next()
+        .unwrap();
+    let listener = TcpListener::bind(addr).unwrap();
+    // let addr = listener.local_addr().unwrap();
 
-    let handle = tokio::spawn(async move { server::run(listener, tokio::signal::ctrl_c()).await });
+    let handle =
+        tokio_uring::spawn(async move { server::run(listener, tokio::signal::ctrl_c()).await });
 
     (addr, handle)
 }

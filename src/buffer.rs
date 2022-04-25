@@ -27,7 +27,7 @@ pub fn buffer(client: Client) -> Buffer {
     let (tx, rx) = channel(32);
 
     // Spawn a task to process requests for the connection.
-    tokio::spawn(async move { run(client, rx).await });
+    tokio_uring::spawn(async move { run(client, rx).await });
 
     // Return the `Buffer` handle.
     Buffer { tx }
