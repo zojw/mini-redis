@@ -7,14 +7,14 @@ use crate::{Command, Connection, Db, DbDropGuard, Shutdown};
 
 use std::future::Future;
 use std::sync::Arc;
-use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::{broadcast, mpsc, Semaphore};
 use tokio::time::{self, Duration};
+use tokio_uring::net::{TcpListener, TcpStream};
 use tracing::{debug, error, info, instrument};
 
 /// Server listener state. Created in the `run` call. It includes a `run` method
 /// which performs the TCP listening and initialization of per-connection state.
-#[derive(Debug)]
+// #[derive(Debug)]
 struct Listener {
     /// Shared database handle.
     ///
@@ -66,7 +66,6 @@ struct Listener {
 
 /// Per-connection handler. Reads requests from `connection` and applies the
 /// commands to `db`.
-#[derive(Debug)]
 struct Handler {
     /// Shared database handle.
     ///
@@ -247,6 +246,8 @@ impl Listener {
             // error here is non-recoverable.
             let socket = self.accept().await?;
 
+            socket.set_tcp_nodelay(true).await?;
+
             // Create the necessary per-connection handler state.
             let mut handler = Handler {
                 // Get a handle to the shared database.
@@ -271,7 +272,7 @@ impl Listener {
 
             // Spawn a new task to process the connections. Tokio tasks are like
             // asynchronous green threads and are executed concurrently.
-            tokio::spawn(async move {
+            tokio_uring::spawn(async move {
                 // Process the connection. If an error is encountered, log it.
                 if let Err(err) = handler.run().await {
                     error!(cause = ?err, "connection error");

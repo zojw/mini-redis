@@ -1,7 +1,7 @@
 use mini_redis::{client, server};
 use std::net::SocketAddr;
-use tokio::net::TcpListener;
 use tokio::task::JoinHandle;
+use tokio_uring::net::TcpListener;
 
 /// A basic "hello world" style test. A server instance is started in a
 /// background task. A client instance is then established and set and get
@@ -26,7 +26,7 @@ async fn receive_message_subscribed_channel() {
     let client = client::connect(addr.clone()).await.unwrap();
     let mut subscriber = client.subscribe(vec!["hello".into()]).await.unwrap();
 
-    tokio::spawn(async move {
+    tokio_uring::spawn(async move {
         let mut client = client::connect(addr).await.unwrap();
         client.publish("hello", "world".into()).await.unwrap()
     });
@@ -47,7 +47,7 @@ async fn receive_message_multiple_subscribed_channels() {
         .await
         .unwrap();
 
-    tokio::spawn(async move {
+    tokio_uring::spawn(async move {
         let mut client = client::connect(addr).await.unwrap();
         client.publish("hello", "world".into()).await.unwrap()
     });
@@ -56,7 +56,7 @@ async fn receive_message_multiple_subscribed_channels() {
     assert_eq!("hello", &message1.channel);
     assert_eq!(b"world", &message1.content[..]);
 
-    tokio::spawn(async move {
+    tokio_uring::spawn(async move {
         let mut client = client::connect(addr).await.unwrap();
         client.publish("world", "howdy?".into()).await.unwrap()
     });
@@ -83,10 +83,16 @@ async fn unsubscribes_from_channels() {
 }
 
 async fn start_server() -> (SocketAddr, JoinHandle<()>) {
-    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
-    let addr = listener.local_addr().unwrap();
+    let addr = tokio::net::lookup_host("127.0.0.1:0")
+        .await
+        .unwrap()
+        .next()
+        .unwrap();
+    let listener = TcpListener::bind(addr).unwrap();
+    // let addr = listener.local_addr().unwrap();
 
-    let handle = tokio::spawn(async move { server::run(listener, tokio::signal::ctrl_c()).await });
+    let handle =
+        tokio_uring::spawn(async move { server::run(listener, tokio::signal::ctrl_c()).await });
 
     (addr, handle)
 }
